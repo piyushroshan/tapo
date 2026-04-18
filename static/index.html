@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tapo Camera Stream</title>
+    <title>Tapo</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -566,11 +566,134 @@
             color: #ef4444;
             letter-spacing: 0.5px;
         }
+
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .device-card {
+            background: #1a1a2e;
+            border-radius: 12px;
+            border: 1px solid #2a2a4a;
+            padding: 20px;
+            transition: border-color 0.2s;
+        }
+        .device-card:hover { border-color: #4a6cf7; }
+        .device-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+        .device-icon {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .device-icon.plug { background: #22c55e22; color: #22c55e; }
+        .device-icon.bulb { background: #f59e0b22; color: #f59e0b; }
+        .device-icon.switch { background: #3b82f622; color: #3b82f6; }
+        .device-icon.hub { background: #a855f722; color: #a855f7; }
+        .device-icon.sensor { background: #06b6d422; color: #06b6d4; }
+        .device-icon.other { background: #2a2a4a; color: #888; }
+        .device-name { font-size: 15px; font-weight: 600; }
+        .device-model { font-size: 11px; color: #666; margin-top: 2px; }
+        .device-status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 4px;
+        }
+        .device-status-dot.on { background: #22c55e; }
+        .device-status-dot.off { background: #666; }
+        .power-toggle {
+            width: 52px; height: 28px;
+            border-radius: 14px;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+        .power-toggle.on { background: #22c55e; }
+        .power-toggle.off { background: #444; }
+        .power-toggle::after {
+            content: '';
+            position: absolute;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: #fff;
+            top: 3px;
+            transition: left 0.3s;
+        }
+        .power-toggle.on::after { left: 27px; }
+        .power-toggle.off::after { left: 3px; }
+        .device-controls { margin-top: 12px; }
+        .device-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            font-size: 13px;
+            color: #aaa;
+            border-bottom: 1px solid #1f1f3a;
+        }
+        .device-stat:last-child { border-bottom: none; }
+        .device-stat-value { color: #fff; font-weight: 500; }
+        .brightness-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: linear-gradient(to right, #333, #f59e0b);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .brightness-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .color-temp-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: linear-gradient(to right, #ff8a2b, #fff5e6, #a6c8ff);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .color-temp-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .device-filter-chips {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Tapo Camera Stream</h1>
+        <h1>Tapo</h1>
         <div style="display:flex;align-items:center;gap:12px;">
             <span class="user-info" id="userInfo"></span>
             <button class="btn btn-sm btn-outline" id="logoutBtn" style="display:none;" onclick="doLogout()">Logout</button>
@@ -612,7 +735,8 @@
         <!-- Dashboard -->
         <div id="dashboardSection" style="display:none;">
             <div class="tabs">
-                <div class="tab active" data-tab="allcams" onclick="switchTab('allcams')">All Cameras</div>
+                <div class="tab active" data-tab="allcams" onclick="switchTab('allcams')">Cameras</div>
+                <div class="tab" data-tab="devices" onclick="switchTab('devices')">Devices</div>
                 <div class="tab" data-tab="videos" onclick="switchTab('videos')">Cloud Videos</div>
                 <div class="tab" data-tab="notifications" onclick="switchTab('notifications')">Notifications</div>
                 <div class="tab" data-tab="local" onclick="switchTab('local')">Local (LAN)</div>
@@ -631,6 +755,19 @@
                 </div>
                 <div id="allcamsGrid" class="video-grid" style="grid-template-columns:repeat(auto-fill,minmax(400px,1fr));">
                     <div class="empty-state">Loading cameras...</div>
+                </div>
+            </div>
+
+            <!-- Devices Tab -->
+            <div id="tab-devices" class="tab-content">
+                <div class="toolbar">
+                    <h2>All Devices</h2>
+                    <span class="count-badge" id="deviceCount"></span>
+                    <button class="btn btn-sm btn-outline" onclick="loadDevices()">Refresh</button>
+                </div>
+                <div class="device-filter-chips" id="deviceFilterChips"></div>
+                <div id="deviceGrid" class="device-grid">
+                    <div class="empty-state">Loading devices...</div>
                 </div>
             </div>
 
@@ -780,7 +917,10 @@
 
     <script>
         let cameras = [];
+        let allDevices = [];
         let selectedCam = null;
+        let deviceCategoryFilter = 'all';
+        let deviceStates = {};
 
         function switchTab(tab) {
             document.querySelectorAll('.tabs:first-of-type > .tab[data-tab]').forEach(t => t.classList.remove('active'));
@@ -788,6 +928,7 @@
             document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
             document.getElementById(`tab-${tab}`).classList.add('active');
             if (tab === 'allcams') { renderAllCamsGrid(); } else { stopStatusPoll(); }
+            if (tab === 'devices') { renderDeviceGrid(); startDevicePoll(); } else { stopDevicePoll(); }
         }
 
         // --- Login ---
@@ -844,23 +985,27 @@
         // --- Devices ---
         async function loadDevices() {
             const sel = document.getElementById('camSelector');
-            sel.innerHTML = '<span class="loading">Loading cameras...</span>';
+            sel.innerHTML = '<span class="loading">Loading devices...</span>';
             try {
                 const resp = await fetch('/api/devices');
                 const data = await resp.json();
-                cameras = data.cameras;
+                cameras = data.cameras || [];
+                allDevices = data.devices || [];
+
                 if (cameras.length === 0) {
                     sel.innerHTML = '<span style="color:#888;">No cameras found.</span>';
-                    return;
+                } else {
+                    sel.innerHTML = cameras.map((cam, i) => `
+                        <div class="cam-chip ${i === 0 ? 'active' : ''}" data-id="${cam.deviceId}" onclick="selectCamera('${cam.deviceId}', this)">
+                            <span class="chip-status ${cam.status === 1 ? 'online' : 'offline'}"></span>
+                            ${cam.alias} <span style="color:#888;font-size:11px;">(${cam.model})</span>
+                        </div>
+                    `).join('');
+                    selectedCam = cameras[0].deviceId;
                 }
-                sel.innerHTML = cameras.map((cam, i) => `
-                    <div class="cam-chip ${i === 0 ? 'active' : ''}" data-id="${cam.deviceId}" onclick="selectCamera('${cam.deviceId}', this)">
-                        <span class="chip-status ${cam.status === 1 ? 'online' : 'offline'}"></span>
-                        ${cam.alias} <span style="color:#888;font-size:11px;">(${cam.model})</span>
-                    </div>
-                `).join('');
-                selectedCam = cameras[0].deviceId;
+
                 renderAllCamsGrid();
+                renderDeviceGrid();
             } catch (e) { sel.innerHTML = `<span class="error">${e.message}</span>`; }
         }
 
@@ -1484,6 +1629,270 @@
                     `;
                 }).join('');
             } catch (e) { list.innerHTML = `<span class="error">${e.message}</span>`; }
+        }
+
+        // --- Devices Grid ---
+        let devicePollTimer = null;
+
+        const DEVICE_ICONS = {
+            plug: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/></svg>',
+            bulb: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>',
+            switch: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="7" ry="7"/><circle cx="16" cy="12" r="3"/></svg>',
+            hub: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>',
+            sensor: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
+            other: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+        };
+
+        function renderDeviceFilterChips() {
+            const nonCamDevices = allDevices.filter(d => d.category !== 'camera');
+            const counts = { all: nonCamDevices.length };
+            nonCamDevices.forEach(d => {
+                counts[d.category] = (counts[d.category] || 0) + 1;
+            });
+            const el = document.getElementById('deviceFilterChips');
+            if (!el) return;
+            const cats = Object.keys(counts).sort((a, b) => a === 'all' ? -1 : b === 'all' ? 1 : counts[b] - counts[a]);
+            el.innerHTML = cats.map(c => {
+                const label = c === 'all' ? 'All' : c.charAt(0).toUpperCase() + c.slice(1) + 's';
+                return `<div class="filter-chip ${deviceCategoryFilter === c ? 'active' : ''}" onclick="setDeviceCategoryFilter('${c}')">${label} (${counts[c]})</div>`;
+            }).join('');
+        }
+
+        function setDeviceCategoryFilter(cat) {
+            deviceCategoryFilter = cat;
+            renderDeviceGrid();
+        }
+
+        function renderDeviceGrid() {
+            const grid = document.getElementById('deviceGrid');
+            const countEl = document.getElementById('deviceCount');
+            if (!grid) return;
+
+            const nonCamDevices = allDevices.filter(d => d.category !== 'camera');
+            if (countEl) countEl.textContent = `${nonCamDevices.length} devices`;
+
+            renderDeviceFilterChips();
+
+            let filtered = nonCamDevices;
+            if (deviceCategoryFilter !== 'all') {
+                filtered = filtered.filter(d => d.category === deviceCategoryFilter);
+            }
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div class="empty-state">No devices found.</div>';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(d => {
+                const cat = d.category || 'other';
+                const icon = DEVICE_ICONS[cat] || DEVICE_ICONS.other;
+                const isOnline = d.status === 1;
+                const stateKey = d.deviceId;
+                const state = deviceStates[stateKey] || {};
+                const isOn = state.on === true || state.device_on === true;
+
+                let controlsHtml = '';
+                if (cat === 'plug' || cat === 'switch') {
+                    controlsHtml = renderPlugControls(d, state);
+                } else if (cat === 'bulb') {
+                    controlsHtml = renderBulbControls(d, state);
+                } else if (cat === 'hub' || cat === 'sensor') {
+                    controlsHtml = renderInfoControls(d, state);
+                }
+
+                return `
+                    <div class="device-card" id="dev-card-${stateKey.slice(0,16)}">
+                        <div class="device-card-header">
+                            <div style="display:flex;gap:12px;align-items:center;">
+                                <div class="device-icon ${cat}">${icon}</div>
+                                <div>
+                                    <div class="device-name">${d.alias}</div>
+                                    <div class="device-model">${d.model} &middot; ${cat}</div>
+                                </div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <span style="font-size:11px;color:${isOnline ? '#22c55e' : '#666'};">${isOnline ? 'Online' : 'Offline'}</span>
+                                ${(cat === 'plug' || cat === 'switch' || cat === 'bulb') && isOnline ? `
+                                    <button class="power-toggle ${isOn ? 'on' : 'off'}" onclick="toggleDevicePower('${d.deviceId}', ${!isOn})" title="${isOn ? 'Turn off' : 'Turn on'}"></button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="device-controls" id="dev-controls-${stateKey.slice(0,16)}">
+                            ${isOnline ? controlsHtml : '<div style="color:#555;font-size:12px;">Device offline</div>'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            filtered.filter(d => d.status === 1).forEach(d => {
+                if (!deviceStates[d.deviceId]) fetchDeviceState(d.deviceId);
+            });
+        }
+
+        function renderPlugControls(d, state) {
+            let html = '';
+            const isOn = state.on !== undefined ? state.on : state.device_on;
+            const sid = d.deviceId.slice(0, 16);
+            if (isOn !== undefined) {
+                html += `<div class="device-stat"><span>Status</span><span class="device-stat-value">${isOn ? 'On' : 'Off'}</span></div>`;
+            }
+
+            // Auto-off config
+            const aoc = state.auto_off_config;
+            if (aoc) {
+                const remainMin = state.auto_off_remain_time || 0;
+                const remainStr = remainMin > 0 ? ` &middot; ${formatOnTime(remainMin * 60)} left` : '';
+                const label = aoc.enable ? `${aoc.delay_min} min${remainStr}` : 'Disabled';
+                html += `<div class="device-stat"><span>Auto-off</span><span class="device-stat-value">${label}</span></div>`;
+            }
+
+            // Energy usage
+            const eu = state.energy_usage;
+            if (eu) {
+                if (eu.today_runtime !== undefined) {
+                    html += `<div class="device-stat"><span>Today</span><span class="device-stat-value">${eu.today_energy} Wh &middot; ${formatOnTime(eu.today_runtime * 60)}</span></div>`;
+                }
+                if (eu.month_runtime !== undefined) {
+                    html += `<div class="device-stat"><span>This month</span><span class="device-stat-value">${eu.month_energy} Wh &middot; ${formatOnTime(eu.month_runtime * 60)}</span></div>`;
+                }
+            }
+
+            if (state.rssi !== undefined) {
+                html += `<div class="device-stat"><span>Signal</span><span class="device-stat-value">${state.rssi} dBm</span></div>`;
+            }
+            if (state.overheat_status !== undefined && state.overheat_status !== 'normal') {
+                html += `<div class="device-stat"><span>Overheat</span><span class="device-stat-value" style="color:#ef4444;">${state.overheat_status}</span></div>`;
+            }
+            if (state.power_protection_status !== undefined && state.power_protection_status !== 'normal') {
+                html += `<div class="device-stat"><span>Power protection</span><span class="device-stat-value" style="color:#ef4444;">${state.power_protection_status}</span></div>`;
+            }
+            if (!html) html = '<div style="color:#555;font-size:12px;">Fetching state...</div>';
+            return html;
+        }
+
+
+        function renderBulbControls(d, state) {
+            let html = '';
+            const isOn = state.on !== undefined ? state.on : state.device_on;
+            if (isOn !== undefined) {
+                html += `<div class="device-stat"><span>Status</span><span class="device-stat-value">${isOn ? 'On' : 'Off'}</span></div>`;
+            }
+            if (state.brightness !== undefined) {
+                html += `
+                    <div class="device-stat"><span>Brightness</span><span class="device-stat-value" id="brightness-val-${d.deviceId.slice(0,16)}">${state.brightness}%</span></div>
+                    <input type="range" min="1" max="100" value="${state.brightness}" class="brightness-slider" oninput="setBrightness('${d.deviceId}', this.value)" />
+                `;
+            }
+            if (state.color_temp !== undefined && state.color_temp > 0) {
+                html += `
+                    <div class="device-stat" style="margin-top:8px;"><span>Color temp</span><span class="device-stat-value" id="colortemp-val-${d.deviceId.slice(0,16)}">${state.color_temp}K</span></div>
+                    <input type="range" min="2500" max="6500" step="100" value="${state.color_temp}" class="color-temp-slider" oninput="setColorTemp('${d.deviceId}', this.value)" />
+                `;
+            } else if (state.hue !== undefined) {
+                html += `<div class="device-stat"><span>Color</span><span class="device-stat-value">H:${state.hue} S:${state.saturation}%</span></div>`;
+            }
+            if (state.signal_level !== undefined) {
+                html += `<div class="device-stat"><span>Signal</span><span class="device-stat-value">Level ${state.signal_level}</span></div>`;
+            }
+            if (!html) html = '<div style="color:#555;font-size:12px;">Fetching state...</div>';
+            return html;
+        }
+
+        function renderInfoControls(d, state) {
+            let html = '';
+            const isOn = state.on !== undefined ? state.on : state.device_on;
+            if (isOn !== undefined) {
+                html += `<div class="device-stat"><span>Status</span><span class="device-stat-value">${isOn ? 'On' : 'Off'}</span></div>`;
+            }
+            if (state.signal_level !== undefined) {
+                html += `<div class="device-stat"><span>Signal</span><span class="device-stat-value">Level ${state.signal_level}</span></div>`;
+            }
+            if (!html) html = '<div style="color:#555;font-size:12px;">Fetching state...</div>';
+            return html;
+        }
+
+        function formatOnTime(seconds) {
+            if (seconds < 60) return `${seconds}s`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            return m > 0 ? `${h}h ${m}m` : `${h}h`;
+        }
+
+        async function fetchDeviceState(deviceId) {
+            try {
+                const resp = await fetch('/api/device/state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId }),
+                });
+                if (!resp.ok) return;
+                const state = await resp.json();
+                deviceStates[deviceId] = state;
+                renderDeviceGrid();
+            } catch (e) {}
+        }
+
+        async function toggleDevicePower(deviceId, on) {
+            try {
+                const resp = await fetch('/api/device/power', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId, on }),
+                });
+                if (!resp.ok) {
+                    const data = await resp.json();
+                    throw new Error(data.detail || 'Failed');
+                }
+                if (deviceStates[deviceId]) deviceStates[deviceId].on = on;
+                renderDeviceGrid();
+                setTimeout(() => fetchDeviceState(deviceId), 1000);
+            } catch (e) { console.error('Power toggle failed:', e.message); }
+        }
+
+        let deviceDebounceTimers = {};
+        function setBrightness(deviceId, val) {
+            const v = parseInt(val);
+            const label = document.getElementById('brightness-val-' + deviceId.slice(0,16));
+            if (label) label.textContent = v + '%';
+            if (deviceDebounceTimers['br_' + deviceId]) clearTimeout(deviceDebounceTimers['br_' + deviceId]);
+            deviceDebounceTimers['br_' + deviceId] = setTimeout(() => {
+                fetch('/api/device/brightness', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId, brightness: v }),
+                }).then(r => {
+                    if (r.ok && deviceStates[deviceId]) deviceStates[deviceId].brightness = v;
+                }).catch(() => {});
+            }, 300);
+        }
+
+        function setColorTemp(deviceId, val) {
+            const v = parseInt(val);
+            const label = document.getElementById('colortemp-val-' + deviceId.slice(0,16));
+            if (label) label.textContent = v + 'K';
+            if (deviceDebounceTimers['ct_' + deviceId]) clearTimeout(deviceDebounceTimers['ct_' + deviceId]);
+            deviceDebounceTimers['ct_' + deviceId] = setTimeout(() => {
+                fetch('/api/device/color', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId, color_temp: v }),
+                }).then(r => {
+                    if (r.ok && deviceStates[deviceId]) deviceStates[deviceId].color_temp = v;
+                }).catch(() => {});
+            }, 300);
+        }
+
+        function startDevicePoll() {
+            stopDevicePoll();
+            devicePollTimer = setInterval(() => {
+                const nonCamDevices = allDevices.filter(d => d.category !== 'camera' && d.status === 1);
+                nonCamDevices.forEach(d => fetchDeviceState(d.deviceId));
+            }, 15000);
+        }
+
+        function stopDevicePoll() {
+            if (devicePollTimer) { clearInterval(devicePollTimer); devicePollTimer = null; }
         }
 
         // --- All Cameras Grid ---

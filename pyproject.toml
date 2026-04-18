@@ -1,7 +1,7 @@
 [project]
-name = "tapo-stream"
-version = "0.1.0"
-description = "Web UI for streaming TP-Link Tapo cameras via cloud"
+name = "tapo"
+version = "0.2.0"
+description = "Web UI for managing TP-Link Tapo devices — cameras, plugs, bulbs, and more"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",

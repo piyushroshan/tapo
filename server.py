@@ -40,6 +40,18 @@ TAPO_ACCESS_KEY = "4d11b6b9d5ea4d19a829adbb9714b057"
 TAPO_SECRET_KEY = "6ed7d97f3e73467f8a5bab90b577ba4c"
 BASE_URL = "https://n-wap-gw.tplinkcloud.com"
 
+DEVICE_CATEGORIES = {
+    "SMART.IPCAMERA": "camera",
+    "SMART.TAPOPLUG": "plug",
+    "SMART.TAPOBULB": "bulb",
+    "SMART.TAPOSWITCH": "switch",
+    "SMART.TAPOHUB": "hub",
+    "SMART.TAPOSENSOR": "sensor",
+    "SMART.KASAPLUG": "plug",
+    "SMART.KASASWITCH": "switch",
+    "IOT.SMARTPLUGSWITCH": "plug",
+}
+
 cloud_state: dict = {
     "token": None,
     "app_server_url": None,
@@ -430,26 +442,32 @@ async def list_devices():
         things = await _get_things(client)
 
     cameras = []
+    devices = []
     for t in things:
-        if t.get("deviceType") != "SMART.IPCAMERA":
-            continue
         nickname = t.get("nickname", "")
         try:
             nickname = base64.b64decode(nickname).decode("utf-8")
         except Exception:
             pass
-        cameras.append({
+        device_type = t.get("deviceType", "")
+        category = DEVICE_CATEGORIES.get(device_type, "other")
+        device = {
             "deviceId": t.get("thingName", ""),
             "alias": nickname or t.get("deviceName", "Unknown"),
             "model": t.get("model", ""),
             "mac": t.get("mac", ""),
             "status": t.get("status", 0),
             "fwVer": t.get("fwVer", ""),
-        })
+            "deviceType": device_type,
+            "category": category,
+        }
+        devices.append(device)
+        if device_type == "SMART.IPCAMERA":
+            cameras.append(device)
 
-    for c in cameras:
-        print(f"[DEVICES]   {c['alias']} model={c['model']} status={c['status']} id={c['deviceId'][:30]}...")
-    return {"cameras": cameras}
+    for d in devices:
+        print(f"[DEVICES]   {d['alias']} model={d['model']} type={d['deviceType']} status={d['status']} id={d['deviceId'][:30]}...")
+    return {"cameras": cameras, "devices": devices}
 
 
 @app.post("/api/device/info")
@@ -479,6 +497,244 @@ async def device_info(request: Request):
 
     return result
 
+
+
+async def _get_shadow(client: httpx.AsyncClient, device_id: str) -> dict:
+    """Get device state via the IoT shadow API. Returns {state, version}."""
+    thing = _get_thing(device_id)
+    base_url = thing.get("edgeAppServerUrlV2") or thing.get("edgeAppServerUrl")
+    if not base_url:
+        base_url = cloud_state.get("iot_server_url", "https://aps1-app-server.iot.i.tplinkcloud.com")
+    if not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+
+    headers = _iot_headers(use_jwt=True)
+    url = f"{base_url}/v1/things/shadows?thingNames={device_id}"
+    print(f"[SHADOW] GET {url}")
+    resp = await client.get(url, headers=headers, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    shadows = data.get("shadows", [])
+    if not shadows:
+        return {}
+    shadow = shadows[0]
+    return {
+        "state": shadow.get("state", {}),
+        "version": shadow.get("version", 0),
+    }
+
+
+async def _set_shadow(client: httpx.AsyncClient, device_id: str, desired: dict) -> dict:
+    """Set device state via shadow PATCH. Fetches current version first."""
+    shadow = await _get_shadow(client, device_id)
+    version = shadow.get("version", 1)
+
+    thing = _get_thing(device_id)
+    base_url = thing.get("edgeAppServerUrlV2") or thing.get("edgeAppServerUrl")
+    if not base_url:
+        base_url = cloud_state.get("iot_server_url", "https://aps1-app-server.iot.i.tplinkcloud.com")
+    if not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+
+    headers = _iot_headers(use_jwt=True)
+    url = f"{base_url}/v1/things/{device_id}/shadows"
+    body = {"state": {"desired": desired}, "version": version + 1}
+    print(f"[SHADOW] PATCH {url} body={json.dumps(body)[:200]}")
+    resp = await client.patch(url, json=body, headers=headers, timeout=15)
+    print(f"[SHADOW] PATCH response: {resp.status_code} {resp.text[:300]}")
+    resp.raise_for_status()
+    if resp.text.strip():
+        return resp.json()
+    return {"status": "ok"}
+
+
+def _is_shadow_device(device_id: str) -> bool:
+    thing = _get_thing(device_id)
+    dt = thing.get("deviceType", "")
+    return dt != "SMART.IPCAMERA"
+
+
+def _edge_base_url(device_id: str) -> str:
+    thing = _get_thing(device_id)
+    base_url = thing.get("edgeAppServerUrlV2") or thing.get("edgeAppServerUrl")
+    if not base_url:
+        base_url = cloud_state.get("iot_server_url", "https://aps1-app-server.iot.i.tplinkcloud.com")
+    if not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+    return base_url
+
+
+async def _get_feature(client: httpx.AsyncClient, device_id: str, feature: str) -> dict | None:
+    base_url = _edge_base_url(device_id)
+    headers = _iot_headers(use_jwt=True)
+    url = f"{base_url}/v1/things/{device_id}/features/{feature}"
+    try:
+        resp = await client.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        print(f"[FEATURE] GET {feature} failed: {e}")
+    return None
+
+
+@app.post("/api/device/state")
+async def get_device_state(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    if not device_id:
+        raise HTTPException(400, "device_id required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        await _ensure_jwt(client)
+
+        shadow_coro = _get_shadow(client, device_id)
+        autooff_coro = _get_feature(client, device_id, "autoOffConfig")
+        energy_coro = _get_energy_usage(client, device_id)
+        shadow, autooff, energy = await asyncio.gather(shadow_coro, autooff_coro, energy_coro)
+
+    reported = shadow.get("state", {}).get("reported", {})
+    desired = shadow.get("state", {}).get("desired", {})
+    version = shadow.get("version", 0)
+
+    state = {**reported, "shadow_version": version}
+    if "on" in desired:
+        state["desired_on"] = desired["on"]
+    if autooff:
+        state["auto_off_config"] = autooff
+    if energy and "energy_usage" in energy:
+        state["energy_usage"] = energy["energy_usage"]
+
+    print(f"[DEVICE-STATE] {device_id[:20]}... state={json.dumps(state)[:300]}")
+    return state
+
+
+@app.post("/api/device/feature")
+async def get_device_feature(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    feature = body.get("feature")
+    if not device_id or not feature:
+        raise HTTPException(400, "device_id and feature required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        await _ensure_jwt(client)
+        result = await _get_feature(client, device_id, feature)
+
+    if result is None:
+        raise HTTPException(404, f"Feature '{feature}' not available")
+    return result
+
+
+async def _get_energy_usage(client: httpx.AsyncClient, device_id: str) -> dict | None:
+    """Get energy usage via POST /v1/things/{id}/usage on app-server."""
+    thing = _get_thing(device_id)
+    base_url = thing.get("appServerUrlV2") or thing.get("appServerUrl")
+    if not base_url:
+        base_url = cloud_state.get("iot_server_url", "https://aps1-app-server.iot.i.tplinkcloud.com")
+    if not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/usage"
+    try:
+        resp = await client.post(url, json={"method": "get_energy_usage"}, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        print(f"[ENERGY] get_energy_usage failed: {e}")
+    return None
+
+
+
+
+@app.post("/api/device/power")
+async def set_device_power(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    on = body.get("on", True)
+
+    if not device_id:
+        raise HTTPException(400, "device_id required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        await _ensure_jwt(client)
+
+        if _is_shadow_device(device_id):
+            result = await _set_shadow(client, device_id, {"on": on})
+        else:
+            request_data = {"method": "set_device_info", "params": {"device_on": on}}
+            result = await _services_sync(client, device_id, request_data, use_edge=True)
+
+    return result
+
+
+@app.post("/api/device/brightness")
+async def set_brightness(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    brightness = body.get("brightness", 100)
+
+    if not device_id:
+        raise HTTPException(400, "device_id required")
+
+    brightness = max(1, min(100, int(brightness)))
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        await _ensure_jwt(client)
+
+        if _is_shadow_device(device_id):
+            result = await _set_shadow(client, device_id, {"brightness": brightness})
+        else:
+            request_data = {"method": "set_device_info", "params": {"brightness": brightness}}
+            result = await _services_sync(client, device_id, request_data, use_edge=True)
+
+    return result
+
+
+@app.post("/api/device/color")
+async def set_color(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+
+    if not device_id:
+        raise HTTPException(400, "device_id required")
+
+    params = {}
+    if "color_temp" in body:
+        params["color_temp"] = max(2500, min(6500, int(body["color_temp"])))
+    if "hue" in body and "saturation" in body:
+        params["hue"] = max(0, min(360, int(body["hue"])))
+        params["saturation"] = max(0, min(100, int(body["saturation"])))
+        params["color_temp"] = 0
+
+    if not params:
+        raise HTTPException(400, "color_temp or hue+saturation required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        await _ensure_jwt(client)
+
+        if _is_shadow_device(device_id):
+            result = await _set_shadow(client, device_id, params)
+        else:
+            request_data = {"method": "set_device_info", "params": params}
+            result = await _services_sync(client, device_id, request_data, use_edge=True)
+
+    return result
 
 
 @app.post("/api/device/privacy")
