@@ -1,0 +1,7 @@
+*.db
+*.xml
+*.apk
+*apk*
+__pycache__/
+*.pyc
+jadx_out/
