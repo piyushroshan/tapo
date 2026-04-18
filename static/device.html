@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device — Tapo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        a { color: #4a6cf7; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .header {
+            background: #1a1a2e;
+            padding: 16px 24px;
+            border-bottom: 1px solid #2a2a4a;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header h1 { font-size: 20px; color: #fff; }
+        .back-link { font-size: 14px; color: #888; }
+        .back-link:hover { color: #4a6cf7; }
+        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+
+        .device-hero {
+            background: #1a1a2e;
+            border-radius: 16px;
+            border: 1px solid #2a2a4a;
+            padding: 28px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+        .device-hero-left { display: flex; gap: 20px; align-items: center; }
+        .hero-icon {
+            width: 56px; height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        .hero-icon.plug { background: #22c55e22; color: #22c55e; }
+        .hero-icon.bulb { background: #f59e0b22; color: #f59e0b; }
+        .hero-icon.switch { background: #3b82f622; color: #3b82f6; }
+        .hero-icon.hub { background: #a855f722; color: #a855f7; }
+        .hero-icon.sensor { background: #06b6d422; color: #06b6d4; }
+        .hero-icon.other { background: #2a2a4a; color: #888; }
+        .hero-icon.camera { background: #ef444422; color: #ef4444; }
+        .hero-name { font-size: 22px; font-weight: 700; }
+        .hero-model { font-size: 13px; color: #888; margin-top: 4px; }
+        .hero-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+        }
+        .status-dot.online { background: #22c55e; }
+        .status-dot.offline { background: #666; }
+
+        .power-toggle-lg {
+            width: 72px; height: 40px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+        .power-toggle-lg.on { background: #22c55e; }
+        .power-toggle-lg.off { background: #444; }
+        .power-toggle-lg::after {
+            content: '';
+            position: absolute;
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: #fff;
+            top: 4px;
+            transition: left 0.3s;
+        }
+        .power-toggle-lg.on::after { left: 36px; }
+        .power-toggle-lg.off::after { left: 4px; }
+
+        .section {
+            background: #1a1a2e;
+            border-radius: 12px;
+            border: 1px solid #2a2a4a;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .section-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 14px;
+            color: #ccc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-title svg { color: #888; }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px;
+        }
+        .stat-card {
+            background: #0f0f1a;
+            border-radius: 10px;
+            padding: 16px;
+            border: 1px solid #1f1f3a;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .stat-unit { font-size: 13px; color: #888; font-weight: 400; }
+        .stat-sub { font-size: 12px; color: #555; margin-top: 4px; }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #1f1f3a;
+            font-size: 13px;
+        }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { color: #888; }
+        .detail-value { color: #fff; font-weight: 500; }
+        .detail-value.warn { color: #f59e0b; }
+        .detail-value.danger { color: #ef4444; }
+        .detail-value.good { color: #22c55e; }
+
+        .loading-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+            color: #555;
+            font-size: 14px;
+        }
+        .loading-page::after {
+            content: '';
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid #555;
+            border-top-color: #4a6cf7;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-left: 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            height: 80px;
+            margin-top: 12px;
+        }
+        .bar {
+            flex: 1;
+            background: #4a6cf7;
+            border-radius: 3px 3px 0 0;
+            min-height: 2px;
+            position: relative;
+            transition: height 0.3s;
+        }
+        .bar:hover { background: #6b8cff; }
+        .bar-labels {
+            display: flex;
+            gap: 2px;
+            margin-top: 4px;
+        }
+        .bar-labels span {
+            flex: 1;
+            text-align: center;
+            font-size: 9px;
+            color: #555;
+        }
+
+        .refresh-btn {
+            background: none;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #888;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .refresh-btn:hover { border-color: #4a6cf7; color: #4a6cf7; }
+
+        .schedule-list { display: flex; flex-direction: column; gap: 10px; }
+        .schedule-item {
+            background: #0f0f1a;
+            border-radius: 10px;
+            padding: 14px 16px;
+            border: 1px solid #1f1f3a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .schedule-item.disabled { opacity: 0.5; }
+        .schedule-time { font-size: 28px; font-weight: 700; color: #fff; min-width: 80px; }
+        .schedule-meta { flex: 1; font-size: 12px; color: #888; }
+        .schedule-action {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .schedule-action.on { background: #22c55e22; color: #22c55e; }
+        .schedule-action.off { background: #ef444422; color: #ef4444; }
+        .schedule-days { margin-top: 4px; }
+        .schedule-toggle {
+            width: 44px; height: 24px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+        .schedule-toggle.on { background: #22c55e; }
+        .schedule-toggle.off { background: #444; }
+        .schedule-toggle::after {
+            content: '';
+            position: absolute;
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            background: #fff;
+            top: 3px;
+            transition: left 0.3s;
+        }
+        .schedule-toggle.on::after { left: 23px; }
+        .schedule-toggle.off::after { left: 3px; }
+        .schedule-actions { display: flex; gap: 6px; align-items: center; }
+        .schedule-delete {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 4px;
+            font-size: 16px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+        .schedule-delete:hover { color: #ef4444; }
+
+        .add-schedule-btn {
+            background: #4a6cf7;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .add-schedule-btn:hover { background: #3a5ce5; }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: #1a1a2e;
+            border-radius: 16px;
+            border: 1px solid #2a2a4a;
+            padding: 24px;
+            width: 90%;
+            max-width: 440px;
+        }
+        .modal h3 { margin-bottom: 20px; font-size: 16px; }
+        .modal-row { margin-bottom: 16px; }
+        .modal-row label { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
+        .modal-row input, .modal-row select {
+            width: 100%;
+            padding: 8px 12px;
+            background: #0f0f1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+        }
+        .modal-row input:focus { border-color: #4a6cf7; }
+        .day-picker { display: flex; gap: 6px; }
+        .day-btn {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            border: 1px solid #333;
+            background: transparent;
+            color: #888;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .day-btn.active { background: #4a6cf7; border-color: #4a6cf7; color: #fff; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .modal-buttons button {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .modal-cancel { background: #333; color: #ccc; }
+        .modal-save { background: #4a6cf7; color: #fff; }
+        .modal-save:hover { background: #3a5ce5; }
+
+        .timer-display {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .timer-countdown {
+            font-size: 36px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: #fff;
+        }
+        .timer-countdown.paused { color: #666; }
+        .timer-info { font-size: 12px; color: #888; }
+        .timer-action-label {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .timer-action-label.on { background: #22c55e22; color: #22c55e; }
+        .timer-action-label.off { background: #ef444422; color: #ef4444; }
+        .timer-controls { display: flex; gap: 8px; margin-left: auto; align-items: center; }
+        .timer-btn {
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .timer-btn-cancel { background: #ef444433; color: #ef4444; }
+        .timer-btn-cancel:hover { background: #ef444455; }
+        .timer-no-active { color: #555; font-size: 13px; padding: 8px 0; }
+
+        .duration-picker { display: flex; gap: 8px; align-items: center; }
+        .duration-picker input {
+            width: 70px;
+            text-align: center;
+        }
+        .duration-picker span { color: #888; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="back-link">&larr; Back</a>
+        <h1 id="pageTitle">Device</h1>
+    </div>
+
+    <div class="container">
+        <div id="loadingState" class="loading-page">Loading device</div>
+        <div id="content" style="display:none;">
+            <!-- Hero -->
+            <div class="device-hero">
+                <div class="device-hero-left">
+                    <div class="hero-icon" id="heroIcon"></div>
+                    <div>
+                        <div class="hero-name" id="heroName"></div>
+                        <div class="hero-model" id="heroModel"></div>
+                        <div class="hero-status">
+                            <span class="status-dot" id="statusDot"></span>
+                            <span id="statusText"></span>
+                        </div>
+                    </div>
+                </div>
+                <div id="heroControls"></div>
+            </div>
+
+            <!-- Energy -->
+            <div class="section" id="energySection" style="display:none;">
+                <div class="section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Energy Usage
+                    <div style="flex:1;"></div>
+                    <button class="refresh-btn" onclick="refreshEnergy()">Refresh</button>
+                </div>
+                <div class="stat-grid" id="energyStats"></div>
+            </div>
+
+            <!-- Schedules -->
+            <div class="section" id="scheduleSection" style="display:none;">
+                <div class="section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Schedules
+                    <div style="flex:1;"></div>
+                    <button class="add-schedule-btn" onclick="openScheduleModal()">+ Add</button>
+                </div>
+                <div class="schedule-list" id="scheduleList"></div>
+            </div>
+
+            <div id="scheduleModal"></div>
+
+            <!-- Timer / Countdown -->
+            <div class="section" id="timerSection" style="display:none;">
+                <div class="section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6"/><path d="M22 6l-3-3"/></svg>
+                    Timer
+                    <div style="flex:1;"></div>
+                    <button class="add-schedule-btn" onclick="openTimerModal()" id="addTimerBtn">+ Add</button>
+                </div>
+                <div id="timerContent"></div>
+            </div>
+
+            <div id="timerModal"></div>
+
+            <!-- Shadow State -->
+            <div class="section" id="stateSection" style="display:none;">
+                <div class="section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    Device Status
+                    <div style="flex:1;"></div>
+                    <button class="refresh-btn" onclick="refreshState()">Refresh</button>
+                </div>
+                <div id="stateDetails"></div>
+            </div>
+
+            <!-- Device Info -->
+            <div class="section" id="infoSection" style="display:none;">
+                <div class="section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    Device Info
+                </div>
+                <div id="infoDetails"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const deviceId = window.location.pathname.split('/device/')[1];
+        let meta = null;
+        let state = null;
+
+        const ICONS = {
+            plug: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 0 1-12 0V8z"/></svg>',
+            bulb: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>',
+            switch: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="7" ry="7"/><circle cx="16" cy="12" r="3"/></svg>',
+            hub: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>',
+            sensor: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
+            camera: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+            other: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+        };
+
+        async function loadDevice() {
+            try {
+                const [metaResp, stateResp] = await Promise.all([
+                    fetch('/api/device/meta', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({device_id: deviceId}) }),
+                    fetch('/api/device/state', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({device_id: deviceId}) }),
+                ]);
+
+                if (!metaResp.ok) throw new Error('Device not found');
+                meta = await metaResp.json();
+                state = stateResp.ok ? await stateResp.json() : {};
+
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+                renderAll();
+            } catch (e) {
+                document.getElementById('loadingState').textContent = e.message;
+                document.getElementById('loadingState').style.color = '#ef4444';
+            }
+        }
+
+        let timerInterval = null;
+
+        function renderAll() {
+            renderHero();
+            renderEnergy();
+            renderSchedules();
+            renderTimers();
+            renderState();
+            renderInfo();
+        }
+
+        function renderHero() {
+            const cat = meta.category || 'other';
+            document.getElementById('pageTitle').textContent = meta.alias;
+            document.title = `${meta.alias} — Tapo`;
+            document.getElementById('heroIcon').className = `hero-icon ${cat}`;
+            document.getElementById('heroIcon').innerHTML = ICONS[cat] || ICONS.other;
+            document.getElementById('heroName').textContent = meta.alias;
+            document.getElementById('heroModel').textContent = `${meta.model} · ${meta.deviceType}`;
+            document.getElementById('statusDot').className = `status-dot ${meta.status === 1 ? 'online' : 'offline'}`;
+            document.getElementById('statusText').textContent = meta.status === 1 ? 'Online' : 'Offline';
+            document.getElementById('statusText').style.color = meta.status === 1 ? '#22c55e' : '#666';
+
+            const controls = document.getElementById('heroControls');
+            const isOn = state.on === true || state.device_on === true;
+            if (['plug', 'switch', 'bulb'].includes(cat) && meta.status === 1) {
+                controls.innerHTML = `<button class="power-toggle-lg ${isOn ? 'on' : 'off'}" onclick="togglePower(${!isOn})" title="${isOn ? 'Turn off' : 'Turn on'}"></button>`;
+            }
+        }
+
+        function renderEnergy() {
+            const eu = state.energy_usage;
+            const section = document.getElementById('energySection');
+            if (!eu) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+
+            let html = '';
+
+            if (eu.today_energy !== undefined) {
+                html += `
+                    <div class="stat-card">
+                        <div class="stat-label">Today Energy</div>
+                        <div class="stat-value">${eu.today_energy}<span class="stat-unit"> Wh</span></div>
+                        <div class="stat-sub">${formatRuntime(eu.today_runtime)} runtime</div>
+                    </div>`;
+            }
+            if (eu.month_energy !== undefined) {
+                html += `
+                    <div class="stat-card">
+                        <div class="stat-label">This Month</div>
+                        <div class="stat-value">${eu.month_energy}<span class="stat-unit"> Wh</span></div>
+                        <div class="stat-sub">${formatRuntime(eu.month_runtime)} runtime</div>
+                    </div>`;
+            }
+            if (eu.today_runtime !== undefined) {
+                html += `
+                    <div class="stat-card">
+                        <div class="stat-label">Today Runtime</div>
+                        <div class="stat-value">${formatRuntime(eu.today_runtime)}</div>
+                    </div>`;
+            }
+            if (eu.month_runtime !== undefined) {
+                html += `
+                    <div class="stat-card">
+                        <div class="stat-label">Month Runtime</div>
+                        <div class="stat-value">${formatRuntime(eu.month_runtime)}</div>
+                    </div>`;
+            }
+
+            document.getElementById('energyStats').innerHTML = html;
+        }
+
+        function renderState() {
+            const section = document.getElementById('stateSection');
+            if (!state || Object.keys(state).length === 0) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+
+            let rows = '';
+            const isOn = state.on === true || state.device_on === true;
+            rows += detailRow('Power', isOn ? 'On' : 'Off', isOn ? 'good' : '');
+
+            // Auto-off config
+            const aoc = state.auto_off_config;
+            if (aoc) {
+                const remainMin = state.auto_off_remain_time || 0;
+                const remainStr = remainMin > 0 ? ` (${formatRuntime(remainMin)} remaining)` : '';
+                const val = aoc.enable ? `${aoc.delay_min} min${remainStr}` : 'Disabled';
+                rows += detailRow('Auto-off', val, aoc.enable ? '' : '');
+            } else if (state.auto_off_status !== undefined) {
+                const remainMin = state.auto_off_remain_time || 0;
+                const remainStr = remainMin > 0 ? ` (${formatRuntime(remainMin)} remaining)` : '';
+                rows += detailRow('Auto-off', `${state.auto_off_status}${remainStr}`);
+            }
+
+            if (state.rssi !== undefined) {
+                const signal = state.rssi > -50 ? 'Excellent' : state.rssi > -60 ? 'Good' : state.rssi > -70 ? 'Fair' : 'Weak';
+                const cls = state.rssi > -60 ? 'good' : state.rssi > -70 ? 'warn' : 'danger';
+                rows += detailRow('Wi-Fi Signal', `${state.rssi} dBm (${signal})`, cls);
+            }
+            if (state.overheat_status !== undefined) {
+                const cls = state.overheat_status === 'normal' ? 'good' : 'danger';
+                rows += detailRow('Overheat', state.overheat_status, cls);
+            }
+            if (state.overcurrent_status !== undefined) {
+                const cls = state.overcurrent_status === 'normal' ? 'good' : 'danger';
+                rows += detailRow('Overcurrent', state.overcurrent_status, cls);
+            }
+            if (state.power_protection_status !== undefined) {
+                const cls = state.power_protection_status === 'normal' ? 'good' : 'danger';
+                rows += detailRow('Power Protection', state.power_protection_status, cls);
+            }
+            if (state.charging_status !== undefined) {
+                const cls = state.charging_status === 'normal' ? 'good' : 'warn';
+                rows += detailRow('Charging', state.charging_status, cls);
+            }
+
+            document.getElementById('stateDetails').innerHTML = rows;
+        }
+
+        function renderInfo() {
+            const section = document.getElementById('infoSection');
+            if (!meta) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+
+            const det = state.details || {};
+            let rows = '';
+            rows += detailRow('Model', det.model || meta.model);
+            rows += detailRow('Device Type', det.deviceType || meta.deviceType);
+            if (det.fwVer || meta.fwVer) rows += detailRow('Firmware', det.fwVer || meta.fwVer);
+            if (det.hwVer || meta.hwVer) rows += detailRow('Hardware', `v${det.hwVer || meta.hwVer}`);
+            if (det.ip) rows += detailRow('IP Address', det.ip);
+            if (det.ssid) {
+                try { rows += detailRow('Wi-Fi SSID', atob(det.ssid)); } catch(e) { rows += detailRow('Wi-Fi SSID', det.ssid); }
+            }
+            const mac = det.mac || meta.mac;
+            if (mac) rows += detailRow('MAC Address', mac.match(/.{2}/g).join(':'));
+            if (meta.region) rows += detailRow('Timezone', meta.region);
+            const obt = det.onboardingTime || meta.onboardingTime;
+            if (obt) {
+                const d = new Date(obt * 1000);
+                rows += detailRow('Added', d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }));
+            }
+            if (det.hwId) rows += detailRow('Hardware ID', `<span style="font-size:11px;color:#555;word-break:break-all;">${det.hwId}</span>`);
+            rows += detailRow('Device ID', `<span style="font-size:11px;color:#555;word-break:break-all;">${deviceId}</span>`);
+
+            document.getElementById('infoDetails').innerHTML = rows;
+        }
+
+        function detailRow(label, value, cls) {
+            const valCls = cls ? ` ${cls}` : '';
+            return `<div class="detail-row"><span class="detail-label">${label}</span><span class="detail-value${valCls}">${value}</span></div>`;
+        }
+
+        function formatRuntime(minutes) {
+            if (!minutes) return '0m';
+            if (minutes < 60) return `${minutes}m`;
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return m > 0 ? `${h}h ${m}m` : `${h}h`;
+        }
+
+        async function togglePower(on) {
+            try {
+                const resp = await fetch('/api/device/power', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device_id: deviceId, on}),
+                });
+                if (!resp.ok) {
+                    const data = await resp.json();
+                    throw new Error(data.detail || 'Failed');
+                }
+                state.on = on;
+                renderHero();
+                renderState();
+                setTimeout(refreshState, 2000);
+            } catch (e) { alert(`Power toggle failed: ${e.message}`); }
+        }
+
+        const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        function renderSchedules() {
+            const section = document.getElementById('scheduleSection');
+            const sched = state.schedules;
+            if (!sched || !sched.ruleList) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+
+            const list = sched.ruleList;
+            if (list.length === 0) {
+                document.getElementById('scheduleList').innerHTML = '<div style="color:#555;font-size:13px;padding:8px 0;">No schedules configured</div>';
+                return;
+            }
+
+            document.getElementById('scheduleList').innerHTML = list.map(r => {
+                const h = Math.floor(r.s_min / 60);
+                const m = r.s_min % 60;
+                const timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                const isOn = r.desired_states && r.desired_states.on === true;
+                const actionLabel = isOn ? 'Turn On' : 'Turn Off';
+                const actionCls = isOn ? 'on' : 'off';
+                const daysStr = formatWeekDay(r.week_day, r.mode, r);
+
+                return `
+                    <div class="schedule-item ${r.enable ? '' : 'disabled'}">
+                        <div class="schedule-time">${timeStr}</div>
+                        <div class="schedule-meta">
+                            <span class="schedule-action ${actionCls}">${actionLabel}</span>
+                            <div class="schedule-days">${daysStr}</div>
+                        </div>
+                        <div class="schedule-actions">
+                            <button class="schedule-toggle ${r.enable ? 'on' : 'off'}" onclick="toggleSchedule('${r.id}', ${!r.enable})" title="${r.enable ? 'Disable' : 'Enable'}"></button>
+                            <button class="schedule-delete" onclick="deleteSchedule('${r.id}')" title="Delete">&#x2715;</button>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function formatWeekDay(wd, mode, rule) {
+            if (mode === 'once' || wd === 0) {
+                const y = rule.year || new Date().getFullYear();
+                const m = rule.month || (new Date().getMonth() + 1);
+                const d = rule.day || new Date().getDate();
+                return `Once · ${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            }
+            // week_day is a bitmask: bit0=Sun, bit1=Mon, ..., bit6=Sat
+            // But the API uses: 2=Mon, 4=Tue, 8=Wed, 16=Thu, 32=Fri, 64=Sat, 128=Sun (or similar)
+            // From the capture: week_day=8 with day=22 looks like a single-day repeat
+            // Actually, standard Tapo encoding: bit1=Mon(2), bit2=Tue(4), bit3=Wed(8), bit4=Thu(16), bit5=Fri(32), bit6=Sat(64), bit7=Sun(128)
+            if (wd === 254) return 'Every day';
+            if (wd === 62) return 'Weekdays';
+            if (wd === 192) return 'Weekends';
+            const days = [];
+            const bits = [
+                [128, 'Sun'], [2, 'Mon'], [4, 'Tue'], [8, 'Wed'],
+                [16, 'Thu'], [32, 'Fri'], [64, 'Sat']
+            ];
+            for (const [bit, name] of bits) {
+                if (wd & bit) days.push(name);
+            }
+            return days.length > 0 ? days.join(', ') : 'Once';
+        }
+
+        function weekDayFromBits(selectedDays) {
+            const bits = { 0: 128, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64 };
+            let wd = 0;
+            for (const d of selectedDays) wd |= bits[d];
+            return wd;
+        }
+
+        function bitsFromWeekDay(wd) {
+            const bits = { 0: 128, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64 };
+            const selected = [];
+            for (const [day, bit] of Object.entries(bits)) {
+                if (wd & bit) selected.push(parseInt(day));
+            }
+            return selected;
+        }
+
+        function nextScheduleId() {
+            const sched = state.schedules;
+            if (!sched || !sched.ruleList || sched.ruleList.length === 0) return 'S1';
+            const ids = sched.ruleList.map(r => parseInt(r.id.replace('S', '')));
+            return `S${Math.max(...ids) + 1}`;
+        }
+
+        function openScheduleModal(editRule) {
+            const isEdit = !!editRule;
+            const h = editRule ? Math.floor(editRule.s_min / 60) : 8;
+            const m = editRule ? editRule.s_min % 60 : 0;
+            const isOn = editRule ? (editRule.desired_states?.on !== false) : true;
+            const selectedDays = editRule && editRule.mode === 'repeat' ? bitsFromWeekDay(editRule.week_day) : [1,2,3,4,5];
+            const mode = editRule ? editRule.mode : 'repeat';
+            const ruleId = editRule ? editRule.id : '';
+
+            document.getElementById('scheduleModal').innerHTML = `
+                <div class="modal-overlay" onclick="if(event.target===this)closeScheduleModal()">
+                    <div class="modal">
+                        <h3>${isEdit ? 'Edit' : 'Add'} Schedule</h3>
+                        <div class="modal-row">
+                            <label>Time</label>
+                            <input type="time" id="schedTime" value="${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}">
+                        </div>
+                        <div class="modal-row">
+                            <label>Action</label>
+                            <select id="schedAction">
+                                <option value="on" ${isOn ? 'selected' : ''}>Turn On</option>
+                                <option value="off" ${!isOn ? 'selected' : ''}>Turn Off</option>
+                            </select>
+                        </div>
+                        <div class="modal-row">
+                            <label>Repeat</label>
+                            <div class="day-picker" id="dayPicker">
+                                ${DAY_NAMES.map((name, i) => `<button class="day-btn ${selectedDays.includes(i) ? 'active' : ''}" data-day="${i}" onclick="this.classList.toggle('active')">${name}</button>`).join('')}
+                            </div>
+                            <div style="font-size:11px;color:#555;margin-top:6px;">Leave all unselected for a one-time schedule</div>
+                        </div>
+                        <div class="modal-buttons">
+                            <button class="modal-cancel" onclick="closeScheduleModal()">Cancel</button>
+                            <button class="modal-save" onclick="saveSchedule('${ruleId}', ${isEdit})">Save</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        function closeScheduleModal() {
+            document.getElementById('scheduleModal').innerHTML = '';
+        }
+
+        async function saveSchedule(ruleId, isEdit) {
+            const timeVal = document.getElementById('schedTime').value;
+            const [hours, mins] = timeVal.split(':').map(Number);
+            const action = document.getElementById('schedAction').value;
+            const activeDays = [...document.querySelectorAll('#dayPicker .day-btn.active')].map(b => parseInt(b.dataset.day));
+
+            const isRepeat = activeDays.length > 0;
+            const wd = isRepeat ? weekDayFromBits(activeDays) : 0;
+
+            const rule = {
+                enable: true,
+                s_type: 'normal',
+                s_min: hours * 60 + mins,
+                e_type: 'none',
+                e_min: 0,
+                week_day: isRepeat ? wd : 0,
+                mode: isRepeat ? 'repeat' : 'once',
+                year: 0,
+                month: 0,
+                day: 0,
+                time_offset: 0,
+                desired_states: {
+                    on: action === 'on',
+                    saturation: 0, brightness: 0, hue: 0, color_temp: 0,
+                },
+            };
+
+            if (isEdit) {
+                rule.id = ruleId;
+                rule.e_action = 'none';
+            }
+
+            try {
+                const fetchOpts = {
+                    headers: {'Content-Type': 'application/json'},
+                };
+                if (isEdit) {
+                    fetchOpts.method = 'PUT';
+                    fetchOpts.body = JSON.stringify({ device_id: deviceId, rule_id: ruleId, rule });
+                } else {
+                    fetchOpts.method = 'POST';
+                    fetchOpts.body = JSON.stringify({ device_id: deviceId, rule });
+                }
+                const resp = await fetch('/api/device/schedule', fetchOpts);
+                if (!resp.ok) {
+                    const data = await resp.json();
+                    throw new Error(data.detail || 'Failed');
+                }
+                closeScheduleModal();
+                await refreshSchedules();
+            } catch (e) {
+                alert(`Save schedule failed: ${e.message}`);
+            }
+        }
+
+        async function toggleSchedule(ruleId, enable) {
+            const sched = state.schedules;
+            if (!sched) return;
+            const rule = sched.ruleList.find(r => r.id === ruleId);
+            if (!rule) return;
+
+            const updated = { ...rule, enable };
+            try {
+                const resp = await fetch('/api/device/schedule', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ device_id: deviceId, rule_id: ruleId, rule: updated }),
+                });
+                if (!resp.ok) {
+                    const data = await resp.json();
+                    throw new Error(data.detail || 'Failed');
+                }
+                await refreshSchedules();
+            } catch (e) {
+                alert(`Toggle schedule failed: ${e.message}`);
+            }
+        }
+
+        async function deleteSchedule(ruleId) {
+            if (!confirm('Delete this schedule?')) return;
+            try {
+                const resp = await fetch('/api/device/schedule', {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ device_id: deviceId, rule_id: ruleId }),
+                });
+                if (!resp.ok) {
+                    const data = await resp.json();
+                    throw new Error(data.detail || 'Failed');
+                }
+                await refreshSchedules();
+            } catch (e) {
+                alert(`Delete schedule failed: ${e.message}`);
+            }
+        }
+
+        function renderTimers() {
+            const section = document.getElementById('timerSection');
+            const tm = state.timers;
+            if (!tm || !tm.ruleList) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+
+            const list = tm.ruleList;
+            const addBtn = document.getElementById('addTimerBtn');
+
+            if (list.length === 0) {
+                document.getElementById('timerContent').innerHTML = '<div class="timer-no-active">No active timer</div>';
+                addBtn.style.display = '';
+                return;
+            }
+
+            const active = list.find(r => r.enable);
+            if (!active) {
+                document.getElementById('timerContent').innerHTML = '<div class="timer-no-active">No active timer</div>';
+                addBtn.style.display = '';
+                return;
+            }
+
+            addBtn.style.display = 'none';
+            const isOn = active.desired_states && active.desired_states.on === true;
+            const actionLabel = isOn ? 'Turn On' : 'Turn Off';
+            const actionCls = isOn ? 'on' : 'off';
+
+            let remain = active.remain || 0;
+            document.getElementById('timerContent').innerHTML = `
+                <div class="timer-display">
+                    <div>
+                        <div class="timer-countdown" id="timerCountdown">${formatSeconds(remain)}</div>
+                        <div class="timer-info">
+                            <span class="timer-action-label ${actionCls}">${actionLabel}</span>
+                            after countdown · Total: ${formatSeconds(active.delay)}
+                        </div>
+                    </div>
+                    <div class="timer-controls">
+                        <button class="timer-btn timer-btn-cancel" onclick="cancelTimer('${active.id}')">Cancel</button>
+                    </div>
+                </div>`;
+
+            timerInterval = setInterval(() => {
+                remain--;
+                if (remain <= 0) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    setTimeout(refreshState, 1000);
+                    return;
+                }
+                const el = document.getElementById('timerCountdown');
+                if (el) el.textContent = formatSeconds(remain);
+            }, 1000);
+        }
+
+        function formatSeconds(s) {
+            if (!s || s <= 0) return '0:00';
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = s % 60;
+            if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+            return `${m}:${String(sec).padStart(2,'0')}`;
+        }
+
+        function openTimerModal() {
+            document.getElementById('timerModal').innerHTML = `
+                <div class="modal-overlay" onclick="if(event.target===this)closeTimerModal()">
+                    <div class="modal">
+                        <h3>Set Timer</h3>
+                        <div class="modal-row">
+                            <label>Duration</label>
+                            <div class="duration-picker">
+                                <input type="number" id="timerHours" min="0" max="23" value="0" placeholder="0">
+                                <span>h</span>
+                                <input type="number" id="timerMinutes" min="0" max="59" value="30" placeholder="30">
+                                <span>m</span>
+                            </div>
+                        </div>
+                        <div class="modal-row">
+                            <label>Action when timer ends</label>
+                            <select id="timerAction">
+                                <option value="off">Turn Off</option>
+                                <option value="on">Turn On</option>
+                            </select>
+                        </div>
+                        <div class="modal-buttons">
+                            <button class="modal-cancel" onclick="closeTimerModal()">Cancel</button>
+                            <button class="modal-save" onclick="startTimer()">Start</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        function closeTimerModal() {
+            document.getElementById('timerModal').innerHTML = '';
+        }
+
+        async function startTimer() {
+            const hours = parseInt(document.getElementById('timerHours').value) || 0;
+            const minutes = parseInt(document.getElementById('timerMinutes').value) || 0;
+            const delay = hours * 3600 + minutes * 60;
+            if (delay <= 0) { alert('Set a duration'); return; }
+
+            const action = document.getElementById('timerAction').value;
+            const rule = {
+                delay,
+                remain: delay,
+                enable: true,
+                desired_states: { on: action === 'on' },
+            };
+
+            try {
+                const resp = await fetch('/api/device/timer', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ device_id: deviceId, rule }),
+                });
+                if (!resp.ok) {
+                    const data = await resp.json();
+                    throw new Error(data.detail || 'Failed');
+                }
+                closeTimerModal();
+                await refreshTimers();
+            } catch (e) {
+                alert(`Start timer failed: ${e.message}`);
+            }
+        }
+
+        async function cancelTimer(ruleId) {
+            try {
+                const resp = await fetch('/api/device/timer', {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ device_id: deviceId, rule_id: ruleId }),
+                });
+                if (!resp.ok) {
+                    const data = await resp.json();
+                    throw new Error(data.detail || 'Failed');
+                }
+                await refreshTimers();
+            } catch (e) {
+                alert(`Cancel timer failed: ${e.message}`);
+            }
+        }
+
+        async function refreshTimers() {
+            try {
+                const resp = await fetch('/api/device/timers', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device_id: deviceId}),
+                });
+                if (resp.ok) {
+                    state.timers = await resp.json();
+                    renderTimers();
+                }
+            } catch (e) {}
+        }
+
+        async function refreshSchedules() {
+            try {
+                const resp = await fetch('/api/device/schedules', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device_id: deviceId}),
+                });
+                if (resp.ok) {
+                    state.schedules = await resp.json();
+                    renderSchedules();
+                }
+            } catch (e) {}
+        }
+
+        async function refreshState() {
+            try {
+                const resp = await fetch('/api/device/state', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device_id: deviceId}),
+                });
+                if (resp.ok) {
+                    state = await resp.json();
+                    renderHero();
+                    renderEnergy();
+                    renderSchedules();
+                    renderTimers();
+                    renderState();
+                }
+            } catch (e) {}
+        }
+
+        async function refreshEnergy() {
+            try {
+                const resp = await fetch('/api/device/energy', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device_id: deviceId}),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.energy_usage) state.energy_usage = data.energy_usage;
+                    renderEnergy();
+                }
+            } catch (e) {}
+        }
+
+        // Auto-refresh every 15s
+        setInterval(refreshState, 15000);
+
+        // Check session then load
+        async function init() {
+            const session = await fetch('/api/session').then(r => r.json());
+            if (!session.logged_in) {
+                window.location.href = '/';
+                return;
+            }
+            loadDevice();
+        }
+        init();
+    </script>
+</body>
+</html>

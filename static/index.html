@@ -601,7 +601,8 @@
         .device-icon.hub { background: #a855f722; color: #a855f7; }
         .device-icon.sensor { background: #06b6d422; color: #06b6d4; }
         .device-icon.other { background: #2a2a4a; color: #888; }
-        .device-name { font-size: 15px; font-weight: 600; }
+        .device-name { font-size: 15px; font-weight: 600; display: block; }
+        a.device-name:hover { color: #4a6cf7 !important; }
         .device-model { font-size: 11px; color: #666; margin-top: 2px; }
         .device-status-dot {
             width: 8px; height: 8px;
@@ -1706,7 +1707,7 @@
                             <div style="display:flex;gap:12px;align-items:center;">
                                 <div class="device-icon ${cat}">${icon}</div>
                                 <div>
-                                    <div class="device-name">${d.alias}</div>
+                                    <a href="/device/${d.deviceId}" class="device-name" style="color:inherit;text-decoration:none;">${d.alias}</a>
                                     <div class="device-model">${d.model} &middot; ${cat}</div>
                                 </div>
                             </div>

@@ -593,7 +593,12 @@ async def get_device_state(request: Request):
         shadow_coro = _get_shadow(client, device_id)
         autooff_coro = _get_feature(client, device_id, "autoOffConfig")
         energy_coro = _get_energy_usage(client, device_id)
-        shadow, autooff, energy = await asyncio.gather(shadow_coro, autooff_coro, energy_coro)
+        schedule_coro = _get_schedules(client, device_id)
+        details_coro = _get_details(client, device_id)
+        timer_coro = _get_timers(client, device_id)
+        shadow, autooff, energy, schedules, details, timers = await asyncio.gather(
+            shadow_coro, autooff_coro, energy_coro, schedule_coro, details_coro, timer_coro
+        )
 
     reported = shadow.get("state", {}).get("reported", {})
     desired = shadow.get("state", {}).get("desired", {})
@@ -606,6 +611,12 @@ async def get_device_state(request: Request):
         state["auto_off_config"] = autooff
     if energy and "energy_usage" in energy:
         state["energy_usage"] = energy["energy_usage"]
+    if schedules and "ruleList" in schedules:
+        state["schedules"] = schedules
+    if details:
+        state["details"] = details
+    if timers and "ruleList" in timers:
+        state["timers"] = timers
 
     print(f"[DEVICE-STATE] {device_id[:20]}... state={json.dumps(state)[:300]}")
     return state
@@ -649,6 +660,117 @@ async def _get_energy_usage(client: httpx.AsyncClient, device_id: str) -> dict |
     except Exception as e:
         print(f"[ENERGY] get_energy_usage failed: {e}")
     return None
+
+
+async def _get_details(client: httpx.AsyncClient, device_id: str) -> dict | None:
+    base_url = _app_server_base(device_id)
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/details"
+    try:
+        resp = await client.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        print(f"[DETAILS] GET details failed: {e}")
+    return None
+
+
+def _app_server_base(device_id: str) -> str:
+    thing = _get_thing(device_id)
+    base_url = thing.get("appServerUrlV2") or thing.get("appServerUrl")
+    if not base_url:
+        base_url = cloud_state.get("iot_server_url", "https://aps1-app-server.iot.i.tplinkcloud.com")
+    if not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+    return base_url
+
+
+async def _get_schedules(client: httpx.AsyncClient, device_id: str) -> dict | None:
+    base_url = _app_server_base(device_id)
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/rules?ruleType=schedule&startIndex=0"
+    try:
+        resp = await client.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        print(f"[SCHEDULE] GET rules failed: {e}")
+    return None
+
+
+async def _create_schedule(client: httpx.AsyncClient, device_id: str, rule: dict) -> dict:
+    base_url = _app_server_base(device_id)
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/rules/type/schedule"
+    resp = await client.post(url, json=rule, headers=headers, timeout=10)
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, f"Schedule create failed: {resp.text}")
+    return resp.json() if resp.text.strip() else {"status": "ok"}
+
+
+async def _update_schedule(client: httpx.AsyncClient, device_id: str, rule_id: str, rule: dict) -> dict:
+    base_url = _app_server_base(device_id)
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/rules/{rule_id}/type/schedule"
+    resp = await client.put(url, json=rule, headers=headers, timeout=10)
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, f"Schedule update failed: {resp.text}")
+    return resp.json() if resp.text.strip() else {"status": "ok"}
+
+
+async def _delete_schedule(client: httpx.AsyncClient, device_id: str, rule_ids: list[str]) -> dict:
+    base_url = _app_server_base(device_id)
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/rules/batchDelete"
+    body = {"removeAll": False, "ruleIds": rule_ids, "ruleType": "schedule"}
+    resp = await client.post(url, json=body, headers=headers, timeout=10)
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, f"Schedule delete failed: {resp.text}")
+    return resp.json() if resp.text.strip() else {"status": "ok"}
+
+
+async def _get_timers(client: httpx.AsyncClient, device_id: str) -> dict | None:
+    base_url = _app_server_base(device_id)
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/rules?ruleType=timer&startIndex=0"
+    try:
+        resp = await client.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        print(f"[TIMER] GET rules failed: {e}")
+    return None
+
+
+async def _create_timer(client: httpx.AsyncClient, device_id: str, rule: dict) -> dict:
+    base_url = _app_server_base(device_id)
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/rules/type/timer"
+    resp = await client.post(url, json=rule, headers=headers, timeout=10)
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, f"Timer create failed: {resp.text}")
+    return resp.json() if resp.text.strip() else {"status": "ok"}
+
+
+async def _update_timer(client: httpx.AsyncClient, device_id: str, rule_id: str, rule: dict) -> dict:
+    base_url = _app_server_base(device_id)
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/rules/{rule_id}/type/timer"
+    resp = await client.put(url, json=rule, headers=headers, timeout=10)
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, f"Timer update failed: {resp.text}")
+    return resp.json() if resp.text.strip() else {"status": "ok"}
+
+
+async def _delete_timer(client: httpx.AsyncClient, device_id: str, rule_ids: list[str]) -> dict:
+    base_url = _app_server_base(device_id)
+    headers = _iot_headers(use_jwt=False)
+    url = f"{base_url}/v1/things/{device_id}/rules/batchDelete"
+    body = {"removeAll": False, "ruleIds": rule_ids, "ruleType": "timer"}
+    resp = await client.post(url, json=body, headers=headers, timeout=10)
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, f"Timer delete failed: {resp.text}")
+    return resp.json() if resp.text.strip() else {"status": "ok"}
 
 
 
@@ -2403,12 +2525,214 @@ async def live_audio_ws(ws: WebSocket, stream_id: str):
         print(f"[AUDIO-WS] Client disconnected for {stream_id}")
 
 
+@app.post("/api/device/energy")
+async def get_energy_usage_api(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    if not device_id:
+        raise HTTPException(400, "device_id required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        await _ensure_jwt(client)
+        result = await _get_energy_usage(client, device_id)
+
+    if result is None:
+        raise HTTPException(404, "Energy usage not available")
+    return result
+
+
+@app.post("/api/device/meta")
+async def get_device_meta(request: Request):
+    """Return thing metadata (model, firmware, MAC, URLs, etc.)"""
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    if not device_id:
+        raise HTTPException(400, "device_id required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+
+    thing = _get_thing(device_id)
+    if not thing:
+        raise HTTPException(404, "Device not found")
+
+    nickname = thing.get("nickname", "")
+    try:
+        nickname = base64.b64decode(nickname).decode("utf-8")
+    except Exception:
+        pass
+
+    return {
+        "deviceId": thing.get("thingName", ""),
+        "alias": nickname or thing.get("deviceName", "Unknown"),
+        "model": thing.get("model", ""),
+        "deviceType": thing.get("deviceType", ""),
+        "category": DEVICE_CATEGORIES.get(thing.get("deviceType", ""), "other"),
+        "mac": thing.get("mac", ""),
+        "fwVer": thing.get("fwVer", ""),
+        "hwVer": thing.get("hwVer", ""),
+        "status": thing.get("status", 0),
+        "region": thing.get("region", ""),
+        "onboardingTime": thing.get("onboardingTime", 0),
+    }
+
+
+@app.post("/api/device/schedules")
+async def get_device_schedules(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    if not device_id:
+        raise HTTPException(400, "device_id required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        result = await _get_schedules(client, device_id)
+
+    if result is None:
+        raise HTTPException(404, "Schedules not available")
+    return result
+
+
+@app.post("/api/device/schedule")
+async def create_device_schedule(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    rule = body.get("rule")
+    if not device_id or not rule:
+        raise HTTPException(400, "device_id and rule required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        result = await _create_schedule(client, device_id, rule)
+
+    return result
+
+
+@app.put("/api/device/schedule")
+async def update_device_schedule(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    rule_id = body.get("rule_id")
+    rule = body.get("rule")
+    if not device_id or not rule_id or not rule:
+        raise HTTPException(400, "device_id, rule_id, and rule required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        result = await _update_schedule(client, device_id, rule_id, rule)
+
+    return result
+
+
+@app.delete("/api/device/schedule")
+async def delete_device_schedule(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    rule_id = body.get("rule_id")
+    if not device_id or not rule_id:
+        raise HTTPException(400, "device_id and rule_id required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        result = await _delete_schedule(client, device_id, [rule_id])
+
+    return result
+
+
+@app.post("/api/device/timers")
+async def get_device_timers(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    if not device_id:
+        raise HTTPException(400, "device_id required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        result = await _get_timers(client, device_id)
+
+    if result is None:
+        raise HTTPException(404, "Timers not available")
+    return result
+
+
+@app.post("/api/device/timer")
+async def create_device_timer(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    rule = body.get("rule")
+    if not device_id or not rule:
+        raise HTTPException(400, "device_id and rule required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        result = await _create_timer(client, device_id, rule)
+
+    return result
+
+
+@app.put("/api/device/timer")
+async def update_device_timer(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    rule_id = body.get("rule_id")
+    rule = body.get("rule")
+    if not device_id or not rule_id or not rule:
+        raise HTTPException(400, "device_id, rule_id, and rule required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        result = await _update_timer(client, device_id, rule_id, rule)
+
+    return result
+
+
+@app.delete("/api/device/timer")
+async def delete_device_timer(request: Request):
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    rule_id = body.get("rule_id")
+    if not device_id or not rule_id:
+        raise HTTPException(400, "device_id and rule_id required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        result = await _delete_timer(client, device_id, [rule_id])
+
+    return result
+
+
 # --- Static ---
 
 
 @app.get("/")
 async def index():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/device/{device_id}")
+async def device_page(device_id: str):
+    return FileResponse(STATIC_DIR / "device.html")
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
