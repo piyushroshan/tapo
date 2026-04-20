@@ -5,6 +5,7 @@ import hmac
 import json
 import os
 import re
+import socket
 import ssl
 import sqlite3
 import subprocess
@@ -2544,6 +2545,25 @@ async def get_energy_usage_api(request: Request):
     return result
 
 
+@app.post("/api/device/query")
+async def device_query(request: Request):
+    """Generic services-sync passthrough for cameras."""
+    _require_login()
+    body = await request.json()
+    device_id = body.get("device_id")
+    request_data = body.get("request_data")
+    if not device_id or not request_data:
+        raise HTTPException(400, "device_id and request_data required")
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if device_id not in iot_things_cache:
+            await _get_things(client)
+        await _ensure_jwt(client)
+        result = await _services_sync(client, device_id, request_data, use_edge=True)
+
+    return result
+
+
 @app.post("/api/device/meta")
 async def get_device_meta(request: Request):
     """Return thing metadata (model, firmware, MAC, URLs, etc.)"""
@@ -2567,6 +2587,32 @@ async def get_device_meta(request: Request):
     except Exception:
         pass
 
+    url_fields = {}
+    for key in ("appServerUrl", "appServerUrlV2", "edgeAppServerUrl", "edgeAppServerUrlV2",
+                "relayUrl", "relayUrlV2", "cloudGatewayUrl", "cloudGatewayUrlV2",
+                "newCloudGatewayUrl", "newCloudGatewayUrlV2",
+                "mediaCdnUrl", "mediaRelayUrl", "mediaRelayBusinessUrl"):
+        val = thing.get(key)
+        if val:
+            url_fields[key] = val
+
+    resolved_ips = {}
+    seen_hosts = set()
+    for val in url_fields.values():
+        host = val
+        for prefix in ("https://", "http://", "wss://", "ws://"):
+            if host.startswith(prefix):
+                host = host[len(prefix):]
+                break
+        host = host.split("/")[0].split(":")[0]
+        if host and host not in seen_hosts:
+            seen_hosts.add(host)
+            try:
+                ip = socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
+                resolved_ips[host] = ip
+            except Exception:
+                pass
+
     return {
         "deviceId": thing.get("thingName", ""),
         "alias": nickname or thing.get("deviceName", "Unknown"),
@@ -2579,6 +2625,8 @@ async def get_device_meta(request: Request):
         "status": thing.get("status", 0),
         "region": thing.get("region", ""),
         "onboardingTime": thing.get("onboardingTime", 0),
+        "urls": url_fields,
+        "resolvedIps": resolved_ips,
     }
 
 

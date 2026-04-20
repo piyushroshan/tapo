@@ -534,6 +534,21 @@
             accent-color: #f59e0b;
         }
 
+        .cam-details-panel {
+            padding: 0 14px 12px;
+            display: none;
+        }
+        .cam-details-panel.open { display: block; }
+        .cam-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 16px;
+            font-size: 12px;
+        }
+        .cam-detail-label { color: #666; }
+        .cam-detail-value { color: #ccc; font-weight: 500; text-align: right; word-break: break-all; }
+        .cam-details-loading { color: #555; font-size: 12px; padding: 4px 0; }
+
         .talk-btn.active {
             background: #ef4444 !important;
             border-color: #ef4444 !important;
@@ -2024,8 +2039,12 @@
                                 </span>
                                 <button class="btn btn-sm btn-outline" onclick="togglePrivacy('${cam.deviceId}', this)" title="Toggle privacy mode">Privacy Off</button>
                                 <button class="btn btn-sm btn-outline talk-btn" onclick="talkToggle('${cam.deviceId}', this)" title="Click to talk, click again to stop">Talk</button>
+                                <button class="btn btn-sm btn-outline" onclick="toggleCamDetails('${cam.deviceId}')" title="Device details">Details</button>
                             </div>
                         </div>
+                    </div>
+                    <div class="cam-details-panel" id="allcam-details-${cam.deviceId.slice(0,16)}">
+                        <div class="cam-details-loading">Loading details...</div>
                     </div>
                     <div class="det-toggles" id="allcam-det-${cam.deviceId.slice(0,16)}">
                         <label class="det-toggle"><input type="checkbox" data-det="motion" onchange="toggleDetection('${cam.deviceId}','motion',this)"> Motion</label>
@@ -2052,6 +2071,107 @@
             if (!card) return;
             card.classList.toggle('expanded');
             card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        const camDetailsCache = {};
+
+        async function toggleCamDetails(deviceId) {
+            const sid = deviceId.slice(0, 16);
+            const panel = document.getElementById('allcam-details-' + sid);
+            if (!panel) return;
+
+            if (panel.classList.contains('open')) {
+                panel.classList.remove('open');
+                return;
+            }
+
+            panel.classList.add('open');
+
+            if (camDetailsCache[deviceId]) {
+                renderCamDetails(deviceId, camDetailsCache[deviceId]);
+                return;
+            }
+
+            panel.innerHTML = '<div class="cam-details-loading">Loading details...</div>';
+            try {
+                const [detailsResp, metaResp] = await Promise.all([
+                    fetch('/api/device/meta', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({device_id: deviceId}) }),
+                    fetch('/api/device/state', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({device_id: deviceId}) }),
+                ]);
+                const meta = detailsResp.ok ? await detailsResp.json() : {};
+                const state = metaResp.ok ? await metaResp.json() : {};
+                const data = { meta, state };
+                camDetailsCache[deviceId] = data;
+                renderCamDetails(deviceId, data);
+            } catch (e) {
+                panel.innerHTML = `<div class="cam-details-loading" style="color:#ef4444;">Failed to load details</div>`;
+            }
+        }
+
+        function renderCamDetails(deviceId, data) {
+            const sid = deviceId.slice(0, 16);
+            const panel = document.getElementById('allcam-details-' + sid);
+            if (!panel) return;
+
+            const { meta, state } = data;
+            const det = state.details || {};
+            let rows = '';
+
+            function row(label, value) {
+                if (!value) return '';
+                return `<div class="cam-detail-label">${label}</div><div class="cam-detail-value">${value}</div>`;
+            }
+
+            if (det.ip) rows += row('IP Address', det.ip);
+            if (det.ssid) {
+                try { rows += row('Wi-Fi SSID', atob(det.ssid)); } catch(e) { rows += row('Wi-Fi SSID', det.ssid); }
+            }
+            const mac = det.mac || meta.mac;
+            if (mac) rows += row('MAC Address', mac.match(/.{2}/g).join(':'));
+            rows += row('Model', det.model || meta.model);
+            rows += row('Firmware', det.fwVer || meta.fwVer);
+            if (det.hwVer) rows += row('Hardware', `v${det.hwVer}`);
+            if (state.rssi !== undefined) {
+                const signal = state.rssi > -50 ? 'Excellent' : state.rssi > -60 ? 'Good' : state.rssi > -70 ? 'Fair' : 'Weak';
+                rows += row('Wi-Fi Signal', `${state.rssi} dBm (${signal})`);
+            }
+            if (meta.region) rows += row('Timezone', meta.region);
+            if (det.onboardingTime || meta.onboardingTime) {
+                const d = new Date((det.onboardingTime || meta.onboardingTime) * 1000);
+                rows += row('Added', d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }));
+            }
+            rows += row('Device ID', `<span style="font-size:10px;color:#555;">${deviceId}</span>`);
+
+            const urls = meta.urls || {};
+            const urlLabels = {
+                relayUrl: 'Relay',
+                relayUrlV2: 'Relay V2',
+                appServerUrl: 'App Server',
+                appServerUrlV2: 'App Server V2',
+                edgeAppServerUrl: 'Edge Server',
+                edgeAppServerUrlV2: 'Edge Server V2',
+                cloudGatewayUrl: 'Cloud Gateway',
+                cloudGatewayUrlV2: 'Cloud Gateway V2',
+                mediaCdnUrl: 'Media CDN',
+                mediaRelayUrl: 'Media Relay',
+                mediaRelayBusinessUrl: 'Media Relay Biz',
+            };
+            let urlRows = '';
+            const ips = meta.resolvedIps || {};
+            for (const [key, label] of Object.entries(urlLabels)) {
+                if (!urls[key]) continue;
+                let val = urls[key];
+                let host = val.replace(/^(https?|wss?):\/\//, '').split('/')[0].split(':')[0];
+                let ipStr = ips[host] ? ` <span style="color:#4a6cf7;">(${ips[host]})</span>` : '';
+                urlRows += row(label, `<span style="font-size:10px;">${val}${ipStr}</span>`);
+            }
+
+            let html = `<div class="cam-details-grid">${rows}</div>`;
+            if (urlRows) {
+                html += `<div style="margin-top:10px;font-size:11px;color:#666;font-weight:600;">Service URLs</div>
+                         <div class="cam-details-grid" style="margin-top:6px;">${urlRows}</div>`;
+            }
+            panel.innerHTML = html;
         }
 
         function startStatusPoll() {

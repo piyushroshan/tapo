@@ -650,6 +650,29 @@
             if (det.hwId) rows += detailRow('Hardware ID', `<span style="font-size:11px;color:#555;word-break:break-all;">${det.hwId}</span>`);
             rows += detailRow('Device ID', `<span style="font-size:11px;color:#555;word-break:break-all;">${deviceId}</span>`);
 
+            const urls = meta.urls || {};
+            const urlLabels = {
+                relayUrl: 'Relay',
+                relayUrlV2: 'Relay V2',
+                appServerUrl: 'App Server',
+                appServerUrlV2: 'App Server V2',
+                edgeAppServerUrl: 'Edge Server',
+                edgeAppServerUrlV2: 'Edge Server V2',
+                cloudGatewayUrl: 'Cloud Gateway',
+                cloudGatewayUrlV2: 'Cloud Gateway V2',
+                mediaCdnUrl: 'Media CDN',
+                mediaRelayUrl: 'Media Relay',
+                mediaRelayBusinessUrl: 'Media Relay Biz',
+            };
+            const ips = meta.resolvedIps || {};
+            for (const [key, label] of Object.entries(urlLabels)) {
+                if (!urls[key]) continue;
+                let val = urls[key];
+                let host = val.replace(/^(https?|wss?):\/\//, '').split('/')[0].split(':')[0];
+                let ipStr = ips[host] ? ` <span style="color:#4a6cf7;">(${ips[host]})</span>` : '';
+                rows += detailRow(label, `<span style="font-size:11px;word-break:break-all;">${val}${ipStr}</span>`);
+            }
+
             document.getElementById('infoDetails').innerHTML = rows;
         }
 
